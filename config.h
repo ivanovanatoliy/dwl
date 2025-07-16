@@ -12,14 +12,14 @@ static const unsigned int gappx            = 10; /* gap pixel between windows */
 static const unsigned int borderpx         = 1;  /* border pixel of windows */
 static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 1; /* 0 means bottom bar */
-static const char *fonts[]                 = {"monospace:size=10"};
+static const char *fonts[]                 = {"JetBrainsMono Nerd Font:size=11"};
 static const float rootcolor[]             = COLOR(0x000000ff);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
-static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
+static const float fullscreen_bg[]         = {0.0f, 0.0f, 0.0f, 1.0f}; /* You can also use glsl colors */
 static uint32_t colors[][3]                = {
 	/*               fg          bg          border    */
 	[SchemeNorm] = { 0xbbbbbbff, 0x222222ff, 0x444444ff },
-	[SchemeSel]  = { 0xeeeeeeff, 0x005577ff, 0x005577ff },
+	[SchemeSel]  = { 0xeeeeeeff, 0x53524cff, 0xd5d2c3ff },
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
 
@@ -28,6 +28,10 @@ static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
 /* logging */
 static int log_level = WLR_ERROR;
+
+/* keyboard layout */
+static const char  kblayout_file[] = "/tmp/dwl-keymap";
+static const char *kblayout_cmd[]  = {"pkill", "-RTMIN+3", "slstatus", NULL};
 
 /* NOTE: ALWAYS keep a rule declared even if you don't use rules (e.g leave at least one example) */
 static const Rule rules[] = {
@@ -56,8 +60,10 @@ static const MonitorRule monrules[] = {
 	/* example of a HiDPI laptop monitor:
 	{ "eDP-1",    0.5f,  1,      2,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
 	*/
+	{ "eDP-1",    0.55f, 1,      1,        &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,    3200,  360 },
+	{ "DP-2",     0.55f, 1,      1.2f,     &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,    0,      0  },
 	/* defaults */
-	{ NULL,       0.55f, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
+	{ NULL,       0.55f, 1,      1,        &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL,   -1,  -1 },
 };
 
 /* keyboard */
@@ -66,7 +72,9 @@ static const struct xkb_rule_names xkb_rules = {
 	/* example:
 	.options = "ctrl:nocaps",
 	*/
-	.options = NULL,
+	.options = NULL,    
+//	.layout  = "us,ru",              
+	//.options = "grp:alt_shift_toggle",
 };
 
 static const int repeat_rate = 25;
@@ -76,7 +84,7 @@ static const int repeat_delay = 600;
 static const int tap_to_click = 1;
 static const int tap_and_drag = 1;
 static const int drag_lock = 1;
-static const int natural_scrolling = 0;
+static const int natural_scrolling = 1;
 static const int disable_while_typing = 1;
 static const int left_handed = 0;
 static const int middle_button_emulation = 0;
@@ -116,7 +124,7 @@ LIBINPUT_CONFIG_TAP_MAP_LMR -- 1/2/3 finger tap maps to left/middle/right
 static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TAP_MAP_LRM;
 
 /* If you want to use the windows key for MODKEY, use WLR_MODIFIER_LOGO */
-#define MODKEY WLR_MODIFIER_ALT
+#define MODKEY WLR_MODIFIER_LOGO
 
 #define TAGKEYS(KEY,SKEY,TAG) \
 	{ MODKEY,                    KEY,            view,            {.ui = 1 << TAG} }, \
@@ -128,25 +136,32 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "foot", NULL };
+static const char *termcmd[] = { "kitty", NULL };
 static const char *menucmd[] = { "wmenu-run", NULL };
+static const char *browsercmd[]   = { "firefox", NULL };
+static const char *flameshot_gui[]     = { "flameshot",                    "gui",            NULL };
+static const char *brightness_down[]   = { "/home/anatoliyi/.scripts/volume_brightness.sh", "brightness_down", NULL };
+static const char *brightness_up[]     = { "/home/anatoliyi/.scripts/volume_brightness.sh", "brightness_up",   NULL };
+static const char *volume_down[]       = { "/home/anatoliyi/.scripts/volume_brightness.sh", "volume_down",     NULL };
+static const char *volume_up[]         = { "/home/anatoliyi/.scripts/volume_brightness.sh", "volume_up",       NULL };
+static const char *volume_mute[]       = { "/home/anatoliyi/.scripts/volume_brightness.sh", "volume_mute",     NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
-	{ MODKEY,                    XKB_KEY_p,          spawn,          {.v = menucmd} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Return,     spawn,          {.v = termcmd} },
-	{ MODKEY,                    XKB_KEY_b,          togglebar,      {0} },
+	{ MODKEY,                    XKB_KEY_p,          spawn,          {.v = menucmd}   },
+	{ MODKEY,                    XKB_KEY_Return,     spawn,          {.v = termcmd}   },
+	{ MODKEY,                    XKB_KEY_b,          spawn,          {.v = browsercmd } },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_B,          togglebar,      {0} },
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_d,          incnmaster,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05f} },
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05f} },
-	{ MODKEY,                    XKB_KEY_Return,     zoom,           {0} },
+	{ MODKEY,                    XKB_KEY_z,          zoom,           {0} },
 	{ MODKEY,                    XKB_KEY_Tab,        view,           {0} },
-	{ MODKEY,                    XKB_KEY_g,          togglegaps,     {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_C,          killclient,     {0} },
+	{ MODKEY,                    XKB_KEY_w,          killclient,     {0} },
 	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },
@@ -169,6 +184,12 @@ static const Key keys[] = {
 	TAGKEYS(          XKB_KEY_8, XKB_KEY_asterisk,                   7),
 	TAGKEYS(          XKB_KEY_9, XKB_KEY_parenleft,                  8),
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Q,          quit,           {0} },
+	{ 0,             XKB_KEY_Print,                       spawn,     {.v = flameshot_gui } },
+	{ 0,             XKB_KEY_XF86MonBrightnessDown,      spawn,     {.v = brightness_down } },
+	{ 0,             XKB_KEY_XF86MonBrightnessUp,        spawn,     {.v = brightness_up } },
+	{ 0,             XKB_KEY_XF86AudioLowerVolume,       spawn,     {.v = volume_down } },
+	{ 0,             XKB_KEY_XF86AudioRaiseVolume,       spawn,     {.v = volume_up } },
+	{ 0,             XKB_KEY_XF86AudioMute,              spawn,     {.v = volume_mute } },
 
 	/* Ctrl-Alt-Backspace and Ctrl-Alt-Fx used to be handled by X server */
 	{ WLR_MODIFIER_CTRL|WLR_MODIFIER_ALT,XKB_KEY_Terminate_Server, quit, {0} },
@@ -179,7 +200,6 @@ static const Key keys[] = {
 	CHVT(1), CHVT(2), CHVT(3), CHVT(4), CHVT(5), CHVT(6),
 	CHVT(7), CHVT(8), CHVT(9), CHVT(10), CHVT(11), CHVT(12),
 };
-
 static const Button buttons[] = {
 	{ ClkLtSymbol, 0,      BTN_LEFT,   setlayout,      {.v = &layouts[0]} },
 	{ ClkLtSymbol, 0,      BTN_RIGHT,  setlayout,      {.v = &layouts[2]} },
