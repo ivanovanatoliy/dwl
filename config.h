@@ -12,7 +12,7 @@ static const unsigned int gappx            = 10; /* gap pixel between windows */
 static const unsigned int borderpx         = 1;  /* border pixel of windows */
 static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 1; /* 0 means bottom bar */
-static const char *fonts[]                 = {"JetBrainsMono Nerd Font:size=11"};
+static const char *fonts[]                 = {"JetBrainsMono Nerd Font:size=12"};
 static const float rootcolor[]             = COLOR(0x000000ff);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.0f, 0.0f, 0.0f, 1.0f}; /* You can also use glsl colors */
@@ -30,8 +30,9 @@ static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 static int log_level = WLR_ERROR;
 
 /* keyboard layout */
-static const char  kblayout_file[] = "/tmp/dwl-keymap";
-static const char *kblayout_cmd[]  = {"pkill", "-RTMIN+3", "slstatus", NULL};
+static const char  kblayout_file[] = "/home/anatoliyi/suckless/dwl-keymap";
+//static const char *kblayout_cmd[] = { "pkill", "-RTMIN+3", "slstatus", NULL };
+static const char *kblayout_cmd[]  = {"", "", "", NULL};
 
 /* NOTE: ALWAYS keep a rule declared even if you don't use rules (e.g leave at least one example) */
 static const Rule rules[] = {
@@ -73,9 +74,9 @@ static const struct xkb_rule_names xkb_rules = {
 	.options = "ctrl:nocaps",
 	*/
 	//.options = "ctrl:nocaps",
-	//.options = NULL,    
-	.layout  = "us,ru",              
-	.options = "grp:alt_shift_toggle",
+	.options = NULL,    
+//	.layout  = "us,ru",              
+//	.options = "grp:alt_shift_toggle",
 };
 
 static const int repeat_rate = 25;
