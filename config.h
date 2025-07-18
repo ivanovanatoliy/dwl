@@ -12,14 +12,15 @@ static const unsigned int gappx            = 10; /* gap pixel between windows */
 static const unsigned int borderpx         = 1;  /* border pixel of windows */
 static const int showbar                   = 1; /* 0 means no bar */
 static const int topbar                    = 1; /* 0 means bottom bar */
-static const char *fonts[]                 = {"JetBrainsMono Nerd Font:size=12"};
+static const char *fonts[]                 = {"JetBrainsMono Nerd Font:size=13"};
 static const float rootcolor[]             = COLOR(0x000000ff);
+static const int centeredtitle             = 1; /* 1 means centered title */
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.0f, 0.0f, 0.0f, 1.0f}; /* You can also use glsl colors */
 static uint32_t colors[][3]                = {
 	/*               fg          bg          border    */
-	[SchemeNorm] = { 0xbbbbbbff, 0x222222ff, 0x444444ff },
-	[SchemeSel]  = { 0xeeeeeeff, 0x53524cff, 0xd5d2c3ff },
+	[SchemeNorm] = { 0x878787ff, 0x080808ff, 0x444444ff },
+	[SchemeSel]  = { 0xeeeeeeff, 0x080808ff, 0xd5d2c3ff },
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
 
@@ -86,7 +87,7 @@ static const int repeat_delay = 600;
 static const int tap_to_click = 1;
 static const int tap_and_drag = 1;
 static const int drag_lock = 1;
-static const int natural_scrolling = 1;
+static const int natural_scrolling = 0;
 static const int disable_while_typing = 1;
 static const int left_handed = 0;
 static const int middle_button_emulation = 0;
@@ -142,6 +143,11 @@ static const char *termcmd[] = { "kitty", NULL };
 static const char *menucmd[] = { "wmenu-run", NULL };
 static const char *browsercmd[]   = { "firefox", NULL };
 static const char *flameshot_gui[]     = { "flameshot",                    "gui",            NULL };
+static const char *grim_capture[] = {
+    "sh", "-c",
+    "grim -g \"$(slurp)\" - | swappy -f - -o - | wl-copy",
+    NULL
+};
 static const char *brightness_down[]   = { "/home/anatoliyi/.scripts/volume_brightness.sh", "brightness_down", NULL };
 static const char *brightness_up[]     = { "/home/anatoliyi/.scripts/volume_brightness.sh", "brightness_up",   NULL };
 static const char *volume_down[]       = { "/home/anatoliyi/.scripts/volume_brightness.sh", "volume_down",     NULL };

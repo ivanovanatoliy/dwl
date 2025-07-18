@@ -84,6 +84,7 @@
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)     do { static struct wl_listener _l = {.notify = (H)}; wl_signal_add((E), &_l); } while (0)
 #define TEXTW(mon, text)        (drwl_font_getwidth(mon->drw, text) + mon->lrpad)
+#define PREFIX(str, prefix)     !strncmp(str, prefix, strlen(prefix))
 
 /* enums */
 enum { SchemeNorm, SchemeSel, SchemeUrg }; /* color schemes */
@@ -321,6 +322,7 @@ static void destroykeyboardgroup(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
 static void drawbar(Monitor *m);
 static void drawbars(void);
+static int drawstatus(Monitor *m);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
@@ -453,7 +455,7 @@ static struct wlr_box sgeom;
 static struct wl_list mons;
 static Monitor *selmon;
 
-static char stext[256];
+static char stext[512];
 static struct wl_event_source *status_event_source;
 
 static const struct wlr_buffer_impl buffer_impl = {
@@ -463,6 +465,11 @@ static const struct wlr_buffer_impl buffer_impl = {
 };
 
 static unsigned int kblayout_idx = -1;
+
+static const struct xkb_rule_names en_rules = {.layout = "us"};
+static struct xkb_context *en_context;
+static struct xkb_keymap *en_keymap;
+static struct xkb_state *en_state;
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
@@ -852,6 +859,9 @@ cleanup(void)
 	wlr_backend_destroy(backend);
 
 	wl_display_destroy(dpy);
+	xkb_state_unref(en_state);
+	xkb_keymap_unref(en_keymap);
+	xkb_context_unref(en_context);
 	/* Destroy after the wayland display (when the monitors are already destroyed)
 	   to avoid destroying them with an invalid scene output. */
 	wlr_scene_node_destroy(&scene->tree.node);
@@ -1532,11 +1542,8 @@ drawbar(Monitor *m)
 		return;
 
 	/* draw status first so it can be overdrawn by tags later */
-	if (m == selmon) { /* status is only drawn on selected monitor */
-		drwl_setscheme(m->drw, colors[SchemeNorm]);
-		tw = TEXTW(m, stext) - m->lrpad + 2; /* 2px right padding */
-		drwl_text(m->drw, m->b.width - tw, 0, tw, m->b.height, 0, stext, 0);
-	}
+	if (m == selmon) /* status is only drawn on selected monitor */
+		tw = drawstatus(m);
 
 	wl_list_for_each(c, &clients, link) {
 		if (c->mon != m)
@@ -1564,9 +1571,14 @@ drawbar(Monitor *m)
 	if ((w = m->b.width - tw - x) > m->b.height) {
 		if (c) {
 			drwl_setscheme(m->drw, colors[m == selmon ? SchemeSel : SchemeNorm]);
-			drwl_text(m->drw, x, 0, w, m->b.height, m->lrpad / 2, client_get_title(c), 0);
+			tw = TEXTW(selmon, client_get_title(c));
+			drwl_text(m->drw, x, 0, w, m->b.height,
+		    		!centeredtitle || tw > w ? m->lrpad / 2 : (w - tw) / 2,
+		    		client_get_title(c), 0);
 			if (c && c->isfloating)
-				drwl_rect(m->drw, x + boxs, boxs, boxw, boxw, 0, 0);
+				drwl_rect(m->drw,
+					!centeredtitle || tw > w ? x + boxs : x + ((w - tw) / 2 - boxs * 8),
+					boxs, boxw, boxw, 0, 0);
 		} else {
 			drwl_setscheme(m->drw, colors[SchemeNorm]);
 			drwl_rect(m->drw, x, 0, w, m->b.height, 1, 1);
@@ -1588,6 +1600,88 @@ drawbars(void)
 
 	wl_list_for_each(m, &mons, link)
 		drawbar(m);
+}
+
+int
+drawstatus(Monitor *m)
+{
+	int x, tw, iw;
+	char rstext[512] = "";
+	char *p, *argstart, *argend, *itext;
+	uint32_t scheme[3], *color;
+
+	/* calculate real width of stext */
+	for (p = stext; *p; p++) {
+		if (PREFIX(p, "^^")) {
+			strncat(rstext, p, 2);
+			p++;
+		} else if (PREFIX(p, "^fg(") || PREFIX(p, "^bg(")) {
+			argend = strchr(p, ')');
+			if (!argend) { /* ignore this command */
+				argstart = strchr(p, '(') + 1;
+				strncat(rstext, p, argstart - p);
+				p = argstart - 1;
+			} else {
+				p = argend;
+			}
+		} else {
+			strncat(rstext, p, 1);
+		}
+	}
+	tw = TEXTW(m, rstext) - m->lrpad;
+
+	x = m->b.width - tw;
+	itext = stext;
+	scheme[0] = colors[SchemeNorm][0];
+	scheme[1] = colors[SchemeNorm][1];
+	drwl_setscheme(m->drw, scheme);
+	for (p = stext; *p; p++) {
+		if (PREFIX(p, "^^")) {
+			p++;
+		} else if (PREFIX(p, "^fg(") || PREFIX(p, "^bg(")) {
+			argstart = strchr(p, '(') + 1;
+			argend = strchr(argstart, ')');
+			if (!argend) { /* ignore this command */
+				p = argstart - 1;
+				continue;
+			}
+
+			*p = '\0';
+			iw = TEXTW(m, itext) - m->lrpad;
+			if (*itext) /* only draw text if there is something to draw */
+				x = drwl_text(m->drw, x, 0, iw, m->b.height, 0, itext, 0);
+			*p = '^';
+
+			if (PREFIX(p, "^fg("))
+				color = &scheme[0];
+			else
+				color = &scheme[1];
+
+			if (argend != argstart) {
+				*argend = '\0';
+				*color = strtoul(argstart, NULL, 16);
+				*color = *color << 8 | 0xff; /* add alpha channel */
+				*argend = ')';
+			} else {
+				*color = 0; /* reset */
+			}
+
+			/* reset color back to normal if none was provided */
+			if (!scheme[0])
+				scheme[0] = colors[SchemeNorm][0];
+			if (!scheme[1])
+				scheme[1] = colors[SchemeNorm][1];
+
+			itext = argend + 1;
+			drwl_setscheme(m->drw, scheme);
+			p = argend;
+		}
+	}
+	iw = TEXTW(m, itext) - m->lrpad;
+	if (*itext)
+		drwl_text(m->drw, x, 0, iw, m->b.height, 0, itext, 0);
+
+	return tw;
 }
 
 void
@@ -1890,16 +1984,19 @@ keypress(struct wl_listener *listener, void *data)
 	/* This event is raised when a key is pressed or released. */
 	KeyboardGroup *group = wl_container_of(listener, group, key);
 	struct wlr_keyboard_key_event *event = data;
+	int nsyms, handled;
 
 	/* Translate libinput keycode -> xkbcommon */
 	uint32_t keycode = event->keycode + 8;
 	/* Get a list of keysyms based on the keymap for this keyboard */
 	const xkb_keysym_t *syms;
-	int nsyms = xkb_state_key_get_syms(
-			group->wlr_group->keyboard.xkb_state, keycode, &syms);
-
-	int handled = 0;
 	uint32_t mods = wlr_keyboard_get_modifiers(&group->wlr_group->keyboard);
+	xkb_state_update_key(en_state, keycode,
+			(event->state == WL_KEYBOARD_KEY_STATE_PRESSED)
+			? XKB_KEY_DOWN : XKB_KEY_UP);
+	nsyms = xkb_state_key_get_syms(en_state, keycode, &syms);
+
+	handled = 0;
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 
@@ -2865,6 +2962,10 @@ setup(void)
 	 * pointer, touch, and drawing tablet device. We also rig up a listener to
 	 * let us know when new input devices are available on the backend.
 	 */
+	en_context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	en_keymap = xkb_keymap_new_from_names(en_context, &en_rules,
+		XKB_KEYMAP_COMPILE_NO_FLAGS);
+	en_state = xkb_state_new(en_keymap);
 	LISTEN_STATIC(&backend->events.new_input, inputdevice);
 	virtual_keyboard_mgr = wlr_virtual_keyboard_manager_v1_create(dpy);
 	LISTEN_STATIC(&virtual_keyboard_mgr->events.new_virtual_keyboard, virtualkeyboard);
